@@ -1,6 +1,8 @@
 package com.charitan.key.key
 
 import com.charitan.key.jwt.JwtInternalService
+import com.fasterxml.jackson.databind.ObjectMapper
+import com.fasterxml.jackson.module.kotlin.readValue
 import io.jsonwebtoken.Jwts
 import io.jsonwebtoken.jackson.io.JacksonSerializer
 import io.jsonwebtoken.security.Curve
@@ -15,7 +17,8 @@ import org.springframework.stereotype.Service
 @Service
 internal class KeyService(
     private val jwtService: JwtInternalService,
-    private val kafkaTemplate: KafkaTemplate<String, String>,
+    private val kafkaTemplate: KafkaTemplate<String, Any>,
+    private val objectMapper: ObjectMapper,
 ) : KeyInternalService {
     private final val encAlgorithm: SignatureAlgorithm = Jwts.SIG.RS256
     private final val sigCurve: Curve = Jwks.CRV.Ed25519
@@ -39,10 +42,13 @@ internal class KeyService(
         val encPair = encAlgorithm.keyPair().build()
         val jwk = jwtService.generateRsaJwk(encPair)
 
-        kafkaTemplate.send("key.encryption.private.change", String(serializer.serialize(jwk)))
+        kafkaTemplate.send(
+            "key.encryption.private.change",
+            objectMapper.readValue<Map<String, String>>(String(serializer.serialize(jwk))),
+        )
         kafkaTemplate.send(
             "key.encryption.public.change",
-            String(serializer.serialize(jwk.toPublicJwk())),
+            objectMapper.readValue<Map<String, String>>(String(serializer.serialize(jwk.toPublicJwk()))),
         )
     }
 
@@ -50,10 +56,13 @@ internal class KeyService(
         val sigPair = sigCurve.keyPair().build()
         val jwk = jwtService.generateEcJwk(sigPair)
 
-        kafkaTemplate.send("key.signature.private.change", String(serializer.serialize(jwk)))
+        kafkaTemplate.send(
+            "key.signature.private.change",
+            objectMapper.readValue<Map<String, String>>(String(serializer.serialize(jwk))),
+        )
         kafkaTemplate.send(
             "key.signature.public.change",
-            String(serializer.serialize(jwk.toPublicJwk())),
+            objectMapper.readValue<Map<String, String>>(String(serializer.serialize(jwk.toPublicJwk()))),
         )
     }
 }
